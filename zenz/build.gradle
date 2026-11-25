@@ -134,8 +134,23 @@ def prepareZenzModel = tasks.register("prepareZenzModel", Exec) {
     }
 }
 
+// 【自作の改造】Windows では準備スクリプト（bash・python・cmake が必要）が動かないので、
+// 手でダウンロードしたモデルを zenz/model/ に置いておけば、それをコピーして使う
+def localZenzModel = file("model/${zenzModelAssetName}")
+prepareZenzModel.configure {
+    onlyIf { !localZenzModel.exists() } // 手元にモデルがあればスクリプトは動かさない
+}
+def copyLocalZenzModel = tasks.register("copyLocalZenzModel", Copy) {
+    group = "zenz"
+    description = "zenz/model/ に置いたモデルを、アプリに入れる場所へコピーする"
+    onlyIf { localZenzModel.exists() }
+    from(localZenzModel)
+    into(generatedZenzAssetsDir)
+}
+
 tasks.named("preBuild").configure {
     dependsOn(prepareZenzModel)
+    dependsOn(copyLocalZenzModel)
 }
 
 dependencies {

@@ -61,6 +61,9 @@ android {
     productFlavors {
         full {
             dimension "edition"
+            // 【自作の改造】今まで使っていた Lite 版（…lite.my）と同じアプリとして上書きできるようにする。
+            // 設定・辞書・学習をそのまま引き継ぐため（自分用なので名前の食い違いは気にしない）
+            applicationIdSuffix ".lite"
             buildConfigField "boolean", "HAS_ZENZ", "true"
             buildConfigField "boolean", "HAS_GEMMA", "true"
             buildConfigField "String", "APP_EDITION", "\"full\""
@@ -1392,7 +1395,9 @@ dependencies {
     implementation project(':qwerty_keyboard')
     implementation project(':custom_keyboard')
     fullImplementation project(':zenz')
-    fullImplementation project(':ai-runtime')
+    // 【自作の改造】ai-runtime（GGUF 版 Gemma 用）は Windows でビルドできないので外す。
+    // Zenzai（AI 変換）は :zenz なので影響しない
+    // fullImplementation project(':ai-runtime')
 
     implementation 'androidx.fragment:fragment-ktx:1.8.8'
     implementation 'androidx.emoji2:emoji2:1.5.0'

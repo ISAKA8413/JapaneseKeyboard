@@ -1,8 +1,6 @@
 package com.kazumaproject.markdownhelperkeyboard.ai
 
-import com.kazumaproject.ai.GgufEngine
 import org.json.JSONObject
-import timber.log.Timber
 
 internal data class AiModelInfo(val name: String, val flags: Int, val projector: Boolean = false) {
     fun encode(): String = JSONObject().put("name", name).put("flags", flags)
@@ -25,44 +23,21 @@ internal interface AiRuntimeBackend : AutoCloseable {
     fun cancel()
 }
 
+/**
+ * 【自作の改造】ai-runtime（GgufEngine）を外したので、GGUF 形式の Gemma は使えない。
+ * 呼ばれたら「使えない」と分かるエラーを返す（LiteRT 形式のモデルは今まで通り使える）。
+ */
 internal class GgufRuntimeBackend : AiRuntimeBackend {
-    @Volatile private var handle = 0L
-    override var modalityFlags = 0
-        private set
+    override val modalityFlags: Int = 0
 
-    override fun inspect(path: String) = AiModelInfo.decode(GgufEngine.inspect(path))
+    private fun unsupported(): Nothing =
+        throw UnsupportedOperationException("この自作版では GGUF 形式の AI モデルは使えません（LiteRT 形式を使ってください）")
 
-    override fun initialize(path: String, backend: String, projectorPath: String): String {
-        close()
-        require(!inspect(path).projector) { "Select a language model, then attach its projector separately." }
-        if (projectorPath.isNotBlank()) require(inspect(projectorPath).projector) {
-            "The selected file is not a multimodal projector."
-        }
-        val resolved = if (backend == "gpu_if_available") {
-            try {
-                handle = GgufEngine.initialize(path, projectorPath, Runtime.getRuntime().availableProcessors(), true)
-                "GPU"
-            } catch (error: Exception) {
-                Timber.w(error, "GGUF GPU initialization failed; retrying with CPU")
-                handle = GgufEngine.initialize(path, projectorPath, Runtime.getRuntime().availableProcessors(), false)
-                "CPU_FALLBACK"
-            }
-        } else {
-            handle = GgufEngine.initialize(path, projectorPath, Runtime.getRuntime().availableProcessors(), false)
-            if (backend == "npu_if_available") "NPU_CPU_FALLBACK" else "CPU"
-        }
-        modalityFlags = GgufEngine.capabilities(handle)
-        return resolved
-    }
-
-    override fun resetCancellation() = GgufEngine.resetCancellation(handle)
+    override fun inspect(path: String): AiModelInfo = unsupported()
+    override fun initialize(path: String, backend: String, projectorPath: String): String = unsupported()
+    override fun resetCancellation() {}
     override fun generate(prompt: String, mediaPath: String, mediaType: Int, instruction: String, targetLanguage: String): String =
-        GgufEngine.generate(handle, prompt, mediaPath, mediaType, instruction, targetLanguage)
-    override fun cancel() = GgufEngine.cancel(handle)
-    override fun close() {
-        val previous = handle
-        handle = 0L
-        if (previous != 0L) GgufEngine.close(previous)
-        modalityFlags = 0
-    }
+        unsupported()
+    override fun cancel() {}
+    override fun close() {}
 }
