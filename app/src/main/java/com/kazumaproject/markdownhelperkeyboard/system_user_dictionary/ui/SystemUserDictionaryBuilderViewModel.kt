@@ -80,9 +80,12 @@ class SystemUserDictionaryBuilderViewModel @Inject constructor(
 
     suspend fun deleteAll() = repository.deleteAll()
 
-    suspend fun buildDictionary(): SystemUserDictionaryFileManager.BuildMetadata = withContext(Dispatchers.IO) {
+    // 【自作の改造】onProgress で進み具合（0〜100%）を画面に伝える
+    suspend fun buildDictionary(
+        onProgress: (percent: Int) -> Unit = {},
+    ): SystemUserDictionaryFileManager.BuildMetadata = withContext(Dispatchers.IO) {
         val entries = repository.getAllForBuild()
-        val metadata = systemUserDictionaryBuilder.build(entries)
+        val metadata = systemUserDictionaryBuilder.build(entries, onProgress)
         kanaKanjiEngine.loadSystemUserDictionaryFromFiles(context)
         metadata
     }
@@ -284,7 +287,8 @@ class SystemUserDictionaryBuilderViewModel @Inject constructor(
                 SystemUserDictionaryEntry(
                     yomi = parsedEntry.yomi,
                     tango = parsedEntry.tango,
-                    score = DEFAULT_SCORE,
+                    // 【自作の改造】ファイルにスコアがあればそれを使い、なければ従来どおり
+                    score = parsedEntry.score ?: DEFAULT_SCORE,
                     leftId = leftId,
                     rightId = rightId,
                 ),

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 【自作の改造】シフト：次の1文字だけ大文字（⇧） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="@color/keyboard_icon_color"
+        android:pathData="M50,36 L35,52 L44,52 L44,64 L56,64 L56,52 L65,52 Z" />
+</vector>

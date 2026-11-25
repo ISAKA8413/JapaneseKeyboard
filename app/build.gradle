@@ -108,6 +108,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 自分用の改造版：本家Sumireと別アプリとしてインストールするための設定
+            applicationIdSuffix ".my"
+            versionNameSuffix "-my"
+        }
         release {
             def releaseSigning = signingConfigs.findByName("release")
             if (releaseSigning?.storeFile) {

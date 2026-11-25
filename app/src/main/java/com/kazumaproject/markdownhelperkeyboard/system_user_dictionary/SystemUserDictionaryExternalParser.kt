@@ -9,6 +9,8 @@ object SystemUserDictionaryExternalParser {
         val yomi: String,
         val tango: String,
         val posHint: String?,
+        // 【自作の改造】ファイルにスコア（数字の列）があれば、その値。なければ null
+        val score: Int? = null,
     )
 
     data class ParseResult(
@@ -88,7 +90,14 @@ object SystemUserDictionaryExternalParser {
             ?.let { columns[it] }
             ?: columns.getOrNull(2)
 
-        return ParsedEntry(yomi = yomi, tango = tango, posHint = posHint)
+        // 【自作の改造】よみ・単語以外の列で、数字だけの列があればスコアとして使う
+        // （小さいほど優先される。Mozc と同じ考え方。範囲外の値は使わない）
+        val score = columns.indices
+            .filter { idx -> idx != yomiIndex && idx != tangoIndex }
+            .firstNotNullOfOrNull { idx -> columns[idx].toIntOrNull() }
+            ?.takeIf { it in 0..Short.MAX_VALUE }
+
+        return ParsedEntry(yomi = yomi, tango = tango, posHint = posHint, score = score)
     }
 
     private fun parseCsvColumns(line: String): List<String> {

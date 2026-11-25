@@ -3025,11 +3025,54 @@ class TenKey(context: Context, attributeSet: AttributeSet) :
         }
     }
 
+    // 【自作の改造】英字のシフト状態を a/A キーのアイコンで表示する
+    // 0 = オフ（a/A）、1 = 次の1文字だけ大文字（⇧）、2 = ずっと大文字（⇧の下に線）
+    private var englishShiftState = 0
+
+    private val cachedShiftOnceDrawable: Drawable? by lazy {
+        ContextCompat.getDrawable(context, com.kazumaproject.core.R.drawable.my_shift_once)
+    }
+
+    private val cachedShiftLockDrawable: Drawable? by lazy {
+        ContextCompat.getDrawable(context, com.kazumaproject.core.R.drawable.my_shift_lock)
+    }
+
+    /** 英字モードでシフト中なら、そのアイコンを返す（それ以外は null） */
+    private fun shiftDrawableOrNull(): Drawable? {
+        if (currentInputMode.value != InputMode.ModeEnglish) return null
+        return when (englishShiftState) {
+            1 -> cachedShiftOnceDrawable
+            2 -> cachedShiftLockDrawable
+            else -> null
+        }
+    }
+
+    /** シフト中なら、a/A キーのアイコンをシフトのアイコンで上書きする */
+    private fun applyShiftIconIfNeeded() {
+        shiftDrawableOrNull()?.let {
+            KeyboardFontGlyphDrawable.setImageDrawable(binding.keySmallLetter, it, keyboardFontSnapshot)
+        }
+    }
+
+    /** IME 本体から呼ぶ：シフト状態を受け取り、アイコンを切り替える */
+    fun setEnglishShiftIndicator(state: Int) {
+        englishShiftState = state
+        if (currentInputMode.value != InputMode.ModeEnglish) return
+        if (state == 0) {
+            // オフ：いつもの表示（a/A、または「IME 切り替えボタン」がオンなら🌐）に戻す
+            setBackgroundSmallLetterKey(isLanguageEnable = isLanguageIconEnabled, isEnglish = true)
+        } else {
+            applyShiftIconIfNeeded()
+        }
+    }
+
     /** Set default drawable for the small/dakuten key **/
     fun setBackgroundSmallLetterKey(
         drawable: Drawable? = cachedLanguageDrawable
     ) {
         KeyboardFontGlyphDrawable.setImageDrawable(binding.keySmallLetter, drawable, keyboardFontSnapshot)
+        // 【自作の改造】シフト中はシフトのアイコンを優先する
+        applyShiftIconIfNeeded()
     }
 
     /** Set default drawable for the small/dakuten key **/
@@ -3046,6 +3089,8 @@ class TenKey(context: Context, attributeSet: AttributeSet) :
                 KeyboardFontGlyphDrawable.setImageDrawable(binding.keySmallLetter, cachedKanaDrawable, keyboardFontSnapshot)
             }
         }
+        // 【自作の改造】シフト中はシフトのアイコンを優先する
+        applyShiftIconIfNeeded()
     }
 
     /** Set custom drawable on the Enter key **/
@@ -3287,6 +3332,8 @@ class TenKey(context: Context, attributeSet: AttributeSet) :
             }
             keyDelete.setImageDrawable(cachedBackSpaceDrawable)
         }
+        // 【自作の改造】シフト中はシフトのアイコンを優先する
+        applyShiftIconIfNeeded()
     }
 
     /** Populate all main keys with Number labels **/

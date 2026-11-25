@@ -22,7 +22,15 @@ class SystemUserDictionaryBuilder @Inject constructor(
     private val fileManager: SystemUserDictionaryFileManager,
 ) {
 
-    fun build(entries: List<SystemUserDictionaryEntry>): SystemUserDictionaryFileManager.BuildMetadata {
+    /**
+     * 【自作の改造】onProgress で 0〜100（%）の進み具合を知らせる
+     * 0〜5: 準備 / 5〜30: 木を作る / 30〜45: 辞書の形に変換 / 45〜98: 単語の情報を書き込む / 100: 完了
+     */
+    fun build(
+        entries: List<SystemUserDictionaryEntry>,
+        onProgress: (percent: Int) -> Unit = {},
+    ): SystemUserDictionaryFileManager.BuildMetadata {
+        onProgress(0)
         if (entries.isEmpty()) {
             fileManager.clearAll()
             return SystemUserDictionaryFileManager.BuildMetadata(
@@ -48,9 +56,15 @@ class SystemUserDictionaryBuilder @Inject constructor(
             }
             .toSortedMap(compareBy<String> { it.length }.thenBy { it })
 
+        onProgress(5)
         val yomiTree = PrefixTreeWithTermId()
         val tangoTree = PrefixTree()
+        val yomiCount = dictionaryMap.size
+        var yomiDone = 0
         dictionaryMap.forEach { (yomi, dictionaries) ->
+            // 【自作の改造】5〜30% の間で進み具合を知らせる
+            yomiDone++
+            if (yomiDone % 1000 == 0) onProgress(5 + 25 * yomiDone / yomiCount)
             yomiTree.insert(yomi)
             dictionaries.forEach { dictionary ->
                 if (!dictionary.tango.isKanaOnly()) {
@@ -59,8 +73,12 @@ class SystemUserDictionaryBuilder @Inject constructor(
             }
         }
 
+        onProgress(30)
         val yomiLouds = ConverterWithTermId().convert(yomiTree.root).apply { convertListToBitSet() }
         val tangoLouds = Converter().convert(tangoTree.root).apply { convertListToBitSet() }
+        // 【自作の改造】語が多くても速くビルドできるように、高速索引を作っておく
+        tangoLouds.enableFastNavigation()
+        onProgress(45)
         val posIndexMap = buildPosIndexMap(dictionaryMap)
 
         writeAtomically(fileManager.yomiFile) { file ->
@@ -75,7 +93,10 @@ class SystemUserDictionaryBuilder @Inject constructor(
         }
         writeAtomically(fileManager.tokenFile) { file ->
             ObjectOutputStream(BufferedOutputStream(FileOutputStream(file))).use { out ->
-                TokenArray().buildTokenArray(dictionaryMap, tangoLouds, out, posIndexMap)
+                TokenArray().buildTokenArray(dictionaryMap, tangoLouds, out, posIndexMap) { done, total ->
+                    // 【自作の改造】45〜98% の間で進み具合を知らせる
+                    if (total > 0) onProgress(45 + 53 * done / total)
+                }
             }
         }
         writeAtomically(fileManager.posTableFile) { file ->
@@ -89,6 +110,7 @@ class SystemUserDictionaryBuilder @Inject constructor(
             builtAt = System.currentTimeMillis(),
         )
         fileManager.writeMetadata(metadata)
+        onProgress(100)
         return metadata
     }
 

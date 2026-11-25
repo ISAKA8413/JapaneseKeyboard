@@ -6591,6 +6591,8 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
         stopSplitKeyboard()
         super.onStartInputView(editorInfo, restarting)
         flickInputPreviewCoordinator.cancel(restore = true)
+        // 【自作の改造】新しい入力欄に移ったら、シフトをオフに戻す
+        if (!restarting) setEnglishShift(0)
         clearZeroQueryAllState(refresh = false)
         // The input view can restart without onStartInput() after returning from settings.
         // Re-read preferences that may change while the existing input session is retained.
@@ -30950,6 +30952,8 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
     private fun sendCharTap(
         charToSend: Char, insertString: String, sb: StringBuilder
     ) {
+        // 【自作の改造】シフトがオンなら大文字にしてから送る
+        val charToSend = applyEnglishShift(charToSend)
         if (dispatchDirectTextIfNeeded(charToSend.toString())) return
         if (applyPendingFlickTextMutation(charToSend.toString(), isFlick = false)) return
         when (currentInputType) {
@@ -30999,6 +31003,8 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
     private fun sendCharFlick(
         charToSend: Char, insertString: String, sb: StringBuilder
     ) {
+        // 【自作の改造】シフトがオンなら大文字にしてから送る
+        val charToSend = applyEnglishShift(charToSend)
         if (dispatchDirectTextIfNeeded(charToSend.toString())) return
         if (applyPendingFlickTextMutation(charToSend.toString(), isFlick = true)) return
         when (currentInputType) {
@@ -31274,24 +31280,75 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
 
     private fun smallBigLetterConversionEnglish(
         sb: StringBuilder, insertString: String,
+        gestureType: GestureType = GestureType.Tap,
     ) {
         _dakutenPressed.value = true
         englishSpaceKeyPressed.set(false)
 
+        // 「IME 切り替えボタン」がオンで、入力中の文字もシフトもないときのタップは、
+        // 元のSumireと同じ動き（キーボード切替）
+        if (gestureType == GestureType.Tap && insertString.isEmpty() && englishShiftState == 0 &&
+            !onKeyboardSwitchLongPressUp && tenkeyShowIMEButtonPreference == true
+        ) {
+            switchNextKeyboard()
+            return
+        }
+
+        // 【自作の改造】a/A キーの操作（案X）
+        when (gestureType) {
+            // タップ：オフ ⇔ 次の1文字だけ大文字（ずっと大文字のときはオフ）
+            GestureType.Tap -> setEnglishShift(if (englishShiftState == 0) 1 else 0)
+            // 上フリック：ずっと大文字
+            GestureType.FlickTop -> setEnglishShift(2)
+            // 下フリック：オフ（小文字に戻す）
+            GestureType.FlickBottom -> setEnglishShift(0)
+            // 左フリック：直前の1文字を大文字⇔小文字に切り替え
+            GestureType.FlickLeft -> toggleLastLetterCase(sb, insertString)
+            // 右フリック：今は何もしない
+            else -> {}
+        }
+    }
+
+    /** 【自作の改造】直前の1文字を大文字⇔小文字に切り替える */
+    private fun toggleLastLetterCase(sb: StringBuilder, insertString: String) {
         if (insertString.isNotEmpty()) {
-            val insertPosition = insertString.last()
-            insertPosition.let { c ->
-                if (!c.isHiragana()) {
-                    c.getDakutenSmallChar()?.let { dakutenChar ->
-                        setStringBuilderForConvertStringInHiragana(dakutenChar, sb, insertString)
-                    }
+            // 確定前の文字があるとき：元のSumireの処理で最後の文字を切り替える
+            val c = insertString.last()
+            if (!c.isHiragana()) {
+                c.getDakutenSmallChar()?.let { toggled ->
+                    setStringBuilderForConvertStringInHiragana(toggled, sb, insertString)
                 }
             }
-        } else {
-            if (!onKeyboardSwitchLongPressUp && tenkeyShowIMEButtonPreference == true) {
-                switchNextKeyboard()
-            }
+            return
         }
+        // 確定前の文字がないとき（パスワード欄など）：カーソル直前の確定済みの英字を切り替える
+        val ic = currentInputConnection ?: return
+        val prev = ic.getTextBeforeCursor(1, 0)?.lastOrNull() ?: return
+        if (prev !in 'a'..'z' && prev !in 'A'..'Z') return
+        val toggled = if (prev.isUpperCase()) prev.lowercaseChar() else prev.uppercaseChar()
+        // 「1文字消す→入れ直す」を1回の操作としてまとめて行う
+        ic.beginBatchEdit()
+        ic.deleteSurroundingText(1, 0)
+        ic.commitText(toggled.toString(), 1)
+        ic.endBatchEdit()
+    }
+
+    // 【自作の改造】英字のシフト状態（0 = オフ、1 = 次の1文字だけ大文字、2 = ずっと大文字）
+    private var englishShiftState = 0
+
+    /** シフト状態を変えて、キーの色にも反映する */
+    private fun setEnglishShift(state: Int) {
+        englishShiftState = state
+        mainLayoutBinding?.keyboardView?.setEnglishShiftIndicator(state)
+    }
+
+    /** 送ろうとしている文字に、シフト状態を当てはめる */
+    private fun applyEnglishShift(c: Char): Char {
+        // シフトがオフ、または小文字の英字でなければ、そのまま返す
+        if (englishShiftState == 0 || c !in 'a'..'z') return c
+        // 「次の1文字だけ」なら、使ったのでオフに戻す
+        if (englishShiftState == 1) setEnglishShift(0)
+        return c.uppercaseChar()
     }
 
     private fun smallBigLetterConversionEnglishFloating(
@@ -31330,7 +31387,7 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
                     }
 
                     InputMode.ModeEnglish -> {
-                        smallBigLetterConversionEnglish(sb, insertString)
+                        smallBigLetterConversionEnglish(sb, insertString, gestureType)
                     }
 
                     InputMode.ModeNumber -> {
@@ -31350,7 +31407,7 @@ class IMEService : InputMethodService(), LifecycleOwner, InputConnection,
                     }
 
                     InputMode.ModeEnglish -> {
-                        smallBigLetterConversionEnglish(sb, insertString)
+                        smallBigLetterConversionEnglish(sb, insertString, gestureType)
                     }
 
                     InputMode.ModeNumber -> {

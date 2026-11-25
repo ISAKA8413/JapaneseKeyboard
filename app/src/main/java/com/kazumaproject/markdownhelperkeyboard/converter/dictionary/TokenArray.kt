@@ -253,7 +253,11 @@ class TokenArray {
         tangoTrie: LOUDS,
         out: ObjectOutput,
         posIndexMap: Map<Pair<Short, Short>, Int>,
+        // 【自作の改造】進み具合の通知（処理した数, 全体の数）。使わなければ何もしない
+        onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ) {
+        val total = dictionaries.values.sumOf { it.size }
+        var done = 0
         val posTableIndices = mutableListOf<Short>()
         val wordCosts = mutableListOf<Short>()
         val nodeIds = mutableListOf<Int>()
@@ -267,8 +271,11 @@ class TokenArray {
                 posTableIndices.add(posIndex.toShort())
                 wordCosts.add(dictionary.cost)
                 nodeIds.add(getNodeIdForDictionary(dictionary, tangoTrie, yomi))
+                done++
+                if (done % 1000 == 0) onProgress(done, total)
             }
         }
+        onProgress(total, total)
 
         posTableIndexList = posTableIndices.toShortArray()
         wordCostList = wordCosts.toShortArray()

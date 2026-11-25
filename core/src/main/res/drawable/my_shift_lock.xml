@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 【自作の改造】シフト：ずっと大文字（⇧の下に線） -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="@color/keyboard_icon_color"
+        android:pathData="M50,33 L35,49 L44,49 L44,59 L56,59 L56,49 L65,49 Z M44,63 L56,63 L56,67 L44,67 Z" />
+</vector>

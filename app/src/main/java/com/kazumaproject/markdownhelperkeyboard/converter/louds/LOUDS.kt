@@ -76,15 +76,50 @@ class LOUDS {
         }
     }
 
+    // 【自作の改造】辞書ビルド用の高速索引
+    // 元の rank1 / select0 は毎回ビット列を先頭から数えるため、語が多いと非常に遅い。
+    // 事前に数えておいた表を使って、一瞬で答えられるようにする（ビルド時だけ使う）。
+    private var fastRank0: IntArray? = null   // fastRank0[i] = 0..i にある 0 の数
+    private var fastSelect0: IntArray? = null // fastSelect0[k - 1] = k 番目の 0 の位置
+
+    /** 辞書ビルドの前に1回だけ呼ぶ。数えた結果を表にしておく */
+    fun enableFastNavigation() {
+        val n = LBS.size() // 元の select0 と同じ範囲（size()）で数える
+        val rank0 = IntArray(n)
+        val zeros = IntArray(n)
+        var zeroCount = 0
+        for (i in 0 until n) {
+            if (!LBS[i]) {
+                zeros[zeroCount] = i
+                zeroCount++
+            }
+            rank0[i] = zeroCount
+        }
+        fastRank0 = rank0
+        fastSelect0 = zeros.copyOf(zeroCount)
+    }
+
+    /** 表があれば表で、なければ元の方法で rank1 を求める */
+    private fun rank1Fast(index: Int): Int {
+        val table = fastRank0
+        return if (table != null && index in table.indices) index + 1 - table[index] else LBS.rank1(index)
+    }
+
+    /** 表があれば表で、なければ元の方法で select0 を求める */
+    private fun select0Fast(nodeId: Int): Int {
+        val table = fastSelect0 ?: return LBS.select0(nodeId)
+        return if (nodeId in 1..table.size) table[nodeId - 1] else -1
+    }
+
     private fun firstChild(pos: Int): Int {
-        return loudsChildPosition(LBS, pos, LBS.select0(LBS.rank1(pos)))
+        return loudsChildPosition(LBS, pos, select0Fast(rank1Fast(pos)))
     }
 
     private fun traverse(pos: Int, c: Char): Int {
         var childPos = firstChild(pos)
         if (childPos == -1) return -1
         while (LBS[childPos]) {
-            if (c == labelAt(LBS.rank1(childPos))) {
+            if (c == labelAt(rank1Fast(childPos))) {
                 return childPos
             }
             childPos += 1
@@ -250,7 +285,7 @@ class LOUDS {
     private fun search(index: Int, chars: CharArray, wordOffset: Int): Int {
         var index2 = index
         var wordOffset2 = wordOffset
-        var charIndex = LBS.rank1(index2)
+        var charIndex = rank1Fast(index2)
         while (LBS[index2]) {
             if (chars[wordOffset2] == labelAt(charIndex)) {
                 if (isLeaf[index2] && wordOffset2 + 1 == chars.size) {

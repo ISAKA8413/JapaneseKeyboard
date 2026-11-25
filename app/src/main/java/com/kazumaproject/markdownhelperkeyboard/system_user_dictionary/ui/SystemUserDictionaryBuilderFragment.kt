@@ -174,8 +174,58 @@ class SystemUserDictionaryBuilderFragment : Fragment() {
     }
 
     private fun buildDictionary() {
+        // 【自作の改造】ビルド中は「〇〇%」の画面を出す
+        val density = resources.displayMetrics.density
+        val padding = (24 * density).toInt()
+        val progressText = android.widget.TextView(requireContext()).apply {
+            text = "準備中… 0%"
+        }
+        val progressBar = android.widget.ProgressBar(
+            requireContext(), null, android.R.attr.progressBarStyleHorizontal,
+        ).apply {
+            max = 100
+            progress = 0
+        }
+        val content = android.widget.LinearLayout(requireContext()).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding(padding, padding, padding, padding / 2)
+            addView(progressText)
+            addView(progressBar)
+        }
+        val progressDialog = AlertDialog.Builder(requireContext())
+            .setTitle(R.string.system_user_dictionary_build_button)
+            .setView(content)
+            .setCancelable(false) // 途中で閉じられないようにする
+            .create()
+        progressDialog.show()
+        binding.buttonBuildDictionary.isEnabled = false // 二重押し防止
+
+        var lastPercent = -1
+        val onProgress: (Int) -> Unit = { percent ->
+            // 同じ値のときは画面を更新しない（無駄な更新を減らす）
+            if (percent != lastPercent) {
+                lastPercent = percent
+                progressBar.post {
+                    progressBar.progress = percent
+                    val stage = when {
+                        percent < 5 -> "準備中…"
+                        percent < 30 -> "単語を並べています…"
+                        percent < 45 -> "辞書の形に変換しています…"
+                        percent < 100 -> "単語の情報を書き込んでいます…"
+                        else -> "仕上げ中…"
+                    }
+                    progressText.text = "$stage $percent%"
+                }
+            }
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
-            val metadata = viewModel.buildDictionary()
+            val metadata = try {
+                viewModel.buildDictionary(onProgress)
+            } finally {
+                progressDialog.dismiss()
+                _binding?.buttonBuildDictionary?.isEnabled = true
+            }
             updateBuildStatus()
             requireActivity().invalidateOptionsMenu()
             val message = if (metadata.entryCount == 0) {
