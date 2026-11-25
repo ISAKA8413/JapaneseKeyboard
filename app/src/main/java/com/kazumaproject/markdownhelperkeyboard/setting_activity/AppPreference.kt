@@ -2236,9 +2236,9 @@ object AppPreference {
         get() = preferences.getInt(
             PREDICTION_MINIMUM_INPUT_LENGTH_PREFERENCE.first,
             PREDICTION_MINIMUM_INPUT_LENGTH_PREFERENCE.second,
-        ).coerceIn(3, 8)
+        ).coerceIn(1, 8) // 【自作の改造】最小値を 3 → 1 に下げた
         set(value) = preferences.edit {
-            it.putInt(PREDICTION_MINIMUM_INPUT_LENGTH_PREFERENCE.first, value.coerceIn(3, 8))
+            it.putInt(PREDICTION_MINIMUM_INPUT_LENGTH_PREFERENCE.first, value.coerceIn(1, 8))
         }
 
     var system_prediction_candidate_limit_preference: Int

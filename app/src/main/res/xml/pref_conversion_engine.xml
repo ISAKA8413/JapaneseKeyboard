@@ -102,7 +102,7 @@
             android:max="8"
             android:summary="@string/prediction_minimum_input_length_summary"
             android:title="@string/prediction_minimum_input_length_title"
-            app:min="3"
+            app:min="1"
             app:showSeekBarValue="true" />
 
         <SeekBarPreference

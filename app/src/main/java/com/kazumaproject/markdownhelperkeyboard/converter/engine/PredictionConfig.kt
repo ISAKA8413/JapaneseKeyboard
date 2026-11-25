@@ -73,7 +73,8 @@ data class PredictionConfig(
     }
 
     companion object {
-        const val MIN_INPUT_LENGTH = 3
+        // 【自作の改造】予測を1文字目から出せるように 3 → 1 に下げた
+        const val MIN_INPUT_LENGTH = 1
         const val MAX_INPUT_LENGTH = 8
         const val MAX_PREDICTION_INPUT_LENGTH = 16
         const val MIN_CANDIDATE_LIMIT = 1
