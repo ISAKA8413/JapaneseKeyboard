@@ -360,7 +360,7 @@
         <SeekBarPreference
             android:defaultValue="4"
             android:key="n_best_preference"
-            android:max="16"
+            android:max="32"
             android:summary="@string/n_best_preference_summary"
             android:title="N-Best"
             app:min="2"

@@ -4806,7 +4806,44 @@ class KanaKanjiEngine {
         config = predictionConfig,
         systemDictionary = systemPredictionDictionary,
         systemUserDictionary = systemUserPredictionDictionary,
-    )
+    ) + systemUserExactMatchCandidates(input) // 【自作の改造】読みが完全一致する語を必ず足す
+
+    /**
+     * 【自作の改造】システムユーザー辞書から、読みが入力と完全に一致する語をすべて返す。
+     * N-Best の順位に入らなかった語（例：ばんさん → 晩産）も候補に出すため。
+     * 普段の変換の順番を崩さないよう、点数に大きめの値を足して後ろの方に並べる。
+     */
+    private fun systemUserExactMatchCandidates(input: String): List<Candidate> {
+        val dictionary = systemUserPredictionDictionary ?: return emptyList()
+        if (input.isEmpty()) return emptyList()
+        return try {
+            // 読みの木から、入力と同じ読みの場所を探す
+            val nodeIndex = dictionary.yomiTrie.getNodeIndex(input, dictionary.succinctBitVectorLBSYomi)
+            if (nodeIndex < 0) return emptyList()
+            val termId = dictionary.yomiTrie.getTermId(nodeIndex, dictionary.succinctBitVectorIsLeafYomi)
+            if (termId < 0) return emptyList()
+            // その読みに登録されている語を全部取り出して、候補にする
+            dictionary.tokenArray.getListDictionaryByYomiTermId(
+                termId, succinctBitVector = dictionary.succinctBitVectorTokenArray
+            ).map {
+                Candidate(
+                    string = when (it.nodeId) {
+                        -2 -> input
+                        -1 -> input.hiraToKata()
+                        else -> dictionary.tangoTrie.getLetter(it.nodeId, dictionary.succinctBitVectorTangoLBS)
+                    },
+                    type = 9,
+                    length = input.length.toUByte(),
+                    score = it.wordCost.toInt() + 10_000, // 点数を上乗せして、普段の候補より後ろに並べる
+                    leftId = dictionary.tokenArray.leftIds[it.posTableIndex.toInt()],
+                    rightId = dictionary.tokenArray.rightIds[it.posTableIndex.toInt()],
+                )
+            }
+        } catch (_: Exception) {
+            // 辞書の読み込み途中などで失敗しても、変換全体は止めない
+            emptyList()
+        }
+    }
 
     private fun deferredPredictionEmojiSymbols(
         input: String,
